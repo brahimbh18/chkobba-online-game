@@ -16,5 +16,9 @@ public:
   Player(const std::string& playerName);
 
   std::string getName();
+  std::string showHand();
+  void setScore(int s);
+  int getScore();
+
 };
 #endif

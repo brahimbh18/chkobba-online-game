@@ -1,18 +1,15 @@
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
-class Round {
-private:
+int aa() {
+  return 1;
+}
 
+int main() {
+  int a = true + true + false;
+  cout << a;
 
-public:
-  void play() {
-    while (!roundOver) {
-      
-    }
-
-  }
-
-
+  return 0;
 }
