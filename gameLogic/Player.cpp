@@ -3,7 +3,7 @@
 
 
 Player::Player(const std::string& n): name(n) {
-    
+    score = 0;
 }
 
 string Player::getName() {

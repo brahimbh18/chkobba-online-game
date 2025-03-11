@@ -2,6 +2,10 @@
 
 Card::Card(int v, int s): value(v), suit(s) {}
 
+int Card::getVal() const {
+    return value; 
+}
+
 char Card::getValue() const {
     return values[value - 1]; 
 }

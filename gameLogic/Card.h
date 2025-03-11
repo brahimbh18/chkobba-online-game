@@ -4,7 +4,6 @@
 #include <string>
 
 using namespace std;
-
     const char values[10] = {'A', '2', '3', '4', '5', '6', '7', 'Q', 'J', 'K'};
     const string suits[4] = {"Hearts", "Diamonds", "Clubs", "Spades"};
     const string symbol[4] = {"♥", "♦", "♣", "♠"};
@@ -16,6 +15,8 @@ private:
 
 public:
     Card(int v, int s);
+
+    int getVal() const;
 
     char getValue() const;
 

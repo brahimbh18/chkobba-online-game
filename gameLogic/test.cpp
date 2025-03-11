@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <ctime>
 
 
 using namespace std;
@@ -12,6 +13,7 @@ using namespace std;
 
 vector<Card> table;
 
+void makeMove(Player& currentPlayer);
 void servePlayers(Deck& deck, Player& player1, Player& player2) {
     for (int j = 0; j < 3; j++) {
         player1.hand.push_back(deck.pop());
@@ -44,30 +46,64 @@ void drawTable(Player &currentPlayer) {
     
 }
 
-void check(Player& currentPlayer, Card& card) {
-    for (int i = 0; i < table.size(); i++) {
-        if (table.at(i).getValue() == card.getValue()) {
-            currentPlayer.capturedCards.push_back(card);
-            currentPlayer.capturedCards.push_back(popc(table, i));
-            return;
-        }
+void check(Player& currentPlayer, int c, vector<int> v) {
+    if (v.empty()) {
+        table.push_back(popc(currentPlayer.hand,c - 1));
+        return;
     }
 
-    table.push_back(card);
+    Card card = currentPlayer.hand.at(c - 1);
+  
+    int s = 0;
+    for (int i: v) {
+        s += table.at(i - 1).getVal();
+        if (s > card.getVal()) break;
+    }
+
+    if (s == card.getVal()) {
+        card = popc(currentPlayer.hand, c - 1);
+        currentPlayer.capturedCards.push_back(card);
+        for (int i: v) {
+            Card t = popc(table, i - 1);
+            currentPlayer.capturedCards.push_back(t);
+        }
+        
+    } else {
+        cout << s << endl;
+        cout << card.getVal() << endl;
+        cout << "Invalid move" << endl;
+        makeMove(currentPlayer);
+    } 
 
 }
 
-void makeMove(Player& currentPlayer) {
+int getChoice(int min, int max) {
     int c;
     do {
-        cout << "choice: " ;
+        cout << " ->choice: " ;
         cin >> c;
-    } while (c < 1 || c > currentPlayer.hand.size());
-    Card ca = popc(currentPlayer.hand, c - 1);
+    } while (c < min || c > max );
 
-    check(currentPlayer, ca);
+    return c;
+}
 
+void makeMove(Player& currentPlayer) {
+    int c = getChoice(1, currentPlayer.hand.size());
 
+    vector<int> a;
+    int k, l = table.size(); 
+    cout << "cards to eat card by card :\n"; 
+    cout << "0 for finishing the list\n";
+    for (int i = 0; a.size() <= table.size(); i++) { 
+        k = getChoice(0, table.size()); 
+        if (k == 0) goto skip;
+        a.push_back(k);
+    }
+    skip:
+    for (int i : a) cout << i << ", ";
+    cout << endl;
+
+    check(currentPlayer, c, a);
 }
 
 bool haya(vector<Card> v) {
@@ -101,15 +137,24 @@ bool bermila(vector<Card> v) {
 
 }
 
-int roundScore(Player& player) {
+int roundScore(vector<Card> v) {
     int c, d, b, h;
 
-    c = player.capturedCards.size() > 20;
-    d = dinari(player.capturedCards);
-    b = bermila(player.capturedCards);
-    h = haya(player.capturedCards);
-
+    c = v.size() > 20;
+    d = dinari(v);
+    b = bermila(v);
+    h = haya(v);
+    cout << "Calculating round score - " 
+         << " Cards: " << c << " Dinari: " << d 
+         << " Bermila: " << b << " Haya: " << h << endl;
     return c + d + b + h;
+}
+
+void turn(Player& player) {
+    drawTable(player);
+    makeMove(player);
+    
+    if (table.size() == 0) player.setScore(player.getScore() + 1);
 }
 
 void round() {
@@ -128,23 +173,19 @@ void round() {
 
     bool p = true;
     int r = 0;
-    while (!roundOver) {
-        if (r == 0) {
-            servePlayers(deck, player1, player2);
-        }
-        r++;
-        if (r == 6) r = 0;
-        Player& currentPlayer = p ? player1 : player2;
-        p = !p;
 
-        drawTable(currentPlayer);
-        makeMove(currentPlayer);
-        if (table.size() == 0) currentPlayer.setScore(currentPlayer.getScore() + 1);
-        if (deck.cards.size() == 0) roundOver = true;
+    for (int i = 0; i < 6; i++) {
+        servePlayers(deck, player1, player2);
+        for (int j = 0; j < 3; j++) {
+            turn(player1);
+            turn(player2);
+        }
     }
 
-    player1.setScore(player1.getScore() + roundScore(player1));
-    player2.setScore(player2.getScore() + roundScore(player2));
+
+    player1.setScore(player1.getScore() + roundScore(player1.capturedCards));
+    player2.setScore(player2.getScore() + roundScore(player2.capturedCards));
+
 
     cout << player1.getName() << ": " << player1.getScore() << endl;
     cout << player2.getName() << ": " << player2.getScore() << endl;
@@ -153,19 +194,7 @@ void round() {
 
 int main() {
 
-
+srand(time(NULL));
     round(); 
-    //deck.toString();
-    // vector<int> v = {1, 2, 3};
-
-    // for (int i: v) cout << i << ", ";
-    // cout << endl;
-
-    // int a = v.back();
-    // v.pop_back();
-
-    // for (int i: v) cout << i << ", ";
-    // cout << endl;
-
     return 0;
 }
