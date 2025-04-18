@@ -20,5 +20,8 @@ public:
   void setScore(int s);
   int getScore();
 
+  void addScore(int s);
+  void drawCard(Card card);
+
 };
 #endif

@@ -25,3 +25,11 @@ void Player::setScore(int s) {
 int Player::getScore() {
     return score;
 }
+
+void Player::addScore(int s) {
+    score += s;
+}
+
+void Player::drawCard(Card card) {
+    hand.push_back(card);
+}

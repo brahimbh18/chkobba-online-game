@@ -32,4 +32,4 @@ public:
 
 };
 
-#endif // CARD_H
+#endif
