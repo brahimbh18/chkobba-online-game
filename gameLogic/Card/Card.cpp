@@ -4,7 +4,7 @@
 namespace gameLogic {
 
 const char Card::values[10] = {'A', '2', '3', '4', '5', '6', '7', 'Q', 'J', 'K'};
-const std::string Card::suits[4] = {"Hearts", "Diamonds", "Clubs", "Spades"};
+const std::string Card::suits[4] = {"R", "C", "T", "B"};
 const std::string Card::symbols[4] = {"♥", "♦", "♣", "♠"};
 
 Card::Card(int v, int s) : value(v), suit(s) {}
@@ -30,7 +30,7 @@ bool Card::matches(const Card& other) const {
 }
 
 std::string Card::toString() const {
-    return std::string(1, getValue()) + ":" + getSymbol();
+    return suits[suit] + std::to_string(value);
 }
 
 void Card::swap(Card& other) {

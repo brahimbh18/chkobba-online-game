@@ -3,8 +3,7 @@
     {
       "name": "linux-gcc-x64",
       "includePath": [
-        "${workspaceFolder}/**",
-        "/opt/sfml2/include/SFML/Graphics.hpp"
+        "${workspaceFolder}/**"
       ],
       "compilerPath": "/usr/bin/gcc",
       "cStandard": "${default}",
