@@ -18,6 +18,10 @@ public:
 
     // Handles a click: lifts/drops and returns the code clicked ("" if none)
     std::string handleClick(const sf::Vector2f& mousePos);
+    int getHandSelected() const;
+    std::vector<bool> getTableSelected() const;
+    void clearSelection();
+
 
 private:
     sf::RectangleShape background;

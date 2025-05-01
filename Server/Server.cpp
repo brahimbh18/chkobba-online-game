@@ -59,7 +59,6 @@ void Server::relayGame(int p1Sock, int p2Sock) {
     close(p2Sock);
 }
 
-// Once both players join, start the game session
 void Server::startGameSession(const std::string& code) {
     // Copy session info under lock
     GameSession sess;
@@ -85,21 +84,25 @@ void Server::startGameSession(const std::string& code) {
     // Main turn loop
     while (!round.isRoundOver()) {
         // Send table state
-        auto cards = round.getTableCards();
+        auto newTable = round.getTableCards();
         std::ostringstream ts;
         ts << "TABLE:";
-        for (size_t i = 0; i < cards.size(); ++i) {
-            ts << "[" << i << "]" << cards[i].toString();
-            if (i + 1 < cards.size()) ts << ",";
+        for (size_t i = 0; i < newTable.size(); ++i) {
+            ts << "[" << i << "]" << newTable[i].toString();
+            if (i + 1 < newTable.size()) ts << ",";
         }
         ts << "\n";
-        sendAll(ts.str());
+        std::string tableMsg = ts.str();
+        sendAll(tableMsg);
+        std::cout << "[SERVER] Sent table: " << tableMsg;
 
         // Send each player's hand
         std::string h1 = "HAND:" + p1.getHandString() + "\n";
         std::string h2 = "HAND:" + p2.getHandString() + "\n";
         send(sess.player1.socket, h1.c_str(), h1.size(), 0);
         send(sess.player2.socket, h2.c_str(), h2.size(), 0);
+        std::cout << "[SERVER] Sent to p1: " << h1;
+        std::cout << "[SERVER] Sent to p2: " << h2;
 
         // Prompt the active player
         gameLogic::Player& active = round.getCurrentPlayer();
@@ -108,45 +111,68 @@ void Server::startGameSession(const std::string& code) {
                          : sess.player2.socket;
         send(activeSock, "TURN\n", 5, 0);
 
-    // Receive a single MOVE command
-    int n = recv(activeSock, buf, sizeof(buf)-1, 0);
-    if (n <= 0) break;
-    buf[n] = '\0';
+        // Receive a single MOVE command
+        int n = recv(activeSock, buf, sizeof(buf)-1, 0);
+        if (n <= 0) {
+            std::cerr << "[SERVER] Disconnected or error on recv (n = " << n << ")\n";
+            break;
+        }
+        buf[n] = '\0';
 
-    std::string line(buf);
-    std::istringstream iss(line);
-    std::string cmd;
-    iss >> cmd;
+        std::string line(buf);
+        std::cout << "[SERVER] Received from client: " << line << "\n";
 
-    if (cmd != "MOVE") {
-        // tell client what went wrong and retry
-        send(activeSock,
-             "ERROR: Expected MOVE <cardIdx> [tableIdx...]\n",
-             44, 0);
-        continue;
-    }
+        std::istringstream iss(line);
+        std::string cmd;
+        iss >> cmd;
 
-    int cardIdx;
-    iss >> cardIdx;
+        if (cmd != "MOVE") {
+            send(activeSock,
+                 "ERROR: Expected MOVE <cardIdx> [tableIdx...]\n",
+                 44, 0);
+            continue;
+        }
 
-    std::vector<int> choices;
-    int idx;
-    while (iss >> idx) {
-        choices.push_back(idx);
-    }
+        int cardIdx;
+        iss >> cardIdx;
 
-    // Build the Move object
-    gameLogic::Player& activeP = round.getCurrentPlayer();
-    gameLogic::Move mv(
-        activeP.getName(),
-        cardIdx,
-        activeP.getHand()[cardIdx],
-        choices
-    );
-    std::string res = round.processMove(mv);
+        std::vector<int> choices;
+        int idx;
+        while (iss >> idx) {
+            choices.push_back(idx);
+        }
 
-    // Broadcast the result
-    sendAll("RESULT:" + res + "\n");
+        // Build and apply the Move
+        gameLogic::Player& activeP = round.getCurrentPlayer();
+        gameLogic::Move mv(
+            activeP.getName(),
+            cardIdx,
+            activeP.getHand()[cardIdx],
+            choices
+        );
+        std::string res = round.processMove(mv);
+        std::cout << "[SERVER] Processed MOVE: " << line << "\n";
+
+        // Send updated table
+        auto updatedTable = round.getTableCards();
+        std::ostringstream ts2;
+        ts2 << "TABLE:";
+        for (size_t i = 0; i < updatedTable.size(); ++i) {
+            ts2 << "[" << i << "]" << updatedTable[i].toString();
+            if (i + 1 < updatedTable.size()) ts2 << ",";
+        }
+        ts2 << "\n";
+        std::string tableAfterMove = ts2.str();
+        sendAll(tableAfterMove);
+        std::cout << "[SERVER] Updated table: " << tableAfterMove;
+
+        // Send updated hands
+        std::string updatedH1 = "HAND:" + p1.getHandString() + "\n";
+        std::string updatedH2 = "HAND:" + p2.getHandString() + "\n";
+        send(sess.player1.socket, updatedH1.c_str(), updatedH1.size(), 0);
+        send(sess.player2.socket, updatedH2.c_str(), updatedH2.size(), 0);
+        std::cout << "[SERVER] Updated HAND p1: " << updatedH1;
+        std::cout << "[SERVER] Updated HAND p2: " << updatedH2;
     }
 
     // Round over: finalize scores and send

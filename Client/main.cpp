@@ -13,8 +13,14 @@ const int WINDOW_WIDTH  = 800;
 const int WINDOW_HEIGHT = 600;
 const int BUTTON_WIDTH = 200;
 const int BUTTON_HEIGHT = 50;
+bool myTurn = false;
+std::string p1ScoreText, p2ScoreText;
+bool score1Complete = false, score2Complete = false;
+bool inScoreBlock = false;
+std::string currentScoreBlock;
 
-enum class UIState { LobbyMenu, CreateForm, JoinForm, Waiting, InGame };
+
+enum class UIState { LobbyMenu, CreateForm, JoinForm, Waiting, InGame, ScoreScreen };
 enum class ActiveField { None, Name, Code };
 
 GameView gameView;
@@ -28,8 +34,8 @@ ActiveField activeField = ActiveField::None;
 sf::Font font;
 
 // UI elements
-sf::RectangleShape createBtn, joinBtn, quitBtn, inputBoxName, inputBoxCode, startBtn, joinConfirmBtn;
-sf::Text createText, joinText, quitText, inputTextName, inputTextCode;
+sf::RectangleShape createBtn, joinBtn, quitBtn, inputBoxName, inputBoxCode, startBtn, joinConfirmBtn, backBtn;
+sf::Text createText, joinText, quitText, inputTextName, inputTextCode, backText;
 sf::Text nameLabel, codeLabel, startText, joinConfirmText, waitingText;
 
 // Utility: create button + center text
@@ -50,6 +56,13 @@ sf::RectangleShape createButton(float x, float y, const std::string& label, sf::
     return button;
 }
 
+void layoutCentered(sf::Text& label, sf::RectangleShape& box, sf::Text& text, float y, const std::string& labelStr) {
+    label.setString(labelStr);
+    label.setPosition((WINDOW_WIDTH - BUTTON_WIDTH) / 2, y);
+    box.setPosition((WINDOW_WIDTH - BUTTON_WIDTH) / 2, y + 35);
+    text.setPosition((WINDOW_WIDTH - BUTTON_WIDTH) / 2 + 5, y + 40);
+}
+
 void drawLobbyMenu(sf::RenderWindow& window) {
     window.draw(createBtn);
     window.draw(joinBtn);
@@ -65,6 +78,8 @@ void drawCreateForm(sf::RenderWindow& window) {
     window.draw(inputTextName);
     window.draw(startBtn);
     window.draw(startText);
+    window.draw(backBtn);
+    window.draw(backText);
 }
 
 void drawJoinForm(sf::RenderWindow& window) {
@@ -76,11 +91,71 @@ void drawJoinForm(sf::RenderWindow& window) {
     window.draw(inputTextName);
     window.draw(joinConfirmBtn);
     window.draw(joinConfirmText);
+    window.draw(backBtn);
+    window.draw(backText);
 }
 
 void drawWaitingScreen(sf::RenderWindow& window) {
     window.draw(waitingText);
 }
+
+void setupScoreScreenUI() {
+    backBtn.setSize({150, 40});
+    backBtn.setPosition((WINDOW_WIDTH - 150) / 2, 500);
+    backBtn.setFillColor({200, 200, 200});
+    backBtn.setOutlineThickness(2);
+    backBtn.setOutlineColor(sf::Color::Black);
+
+    backText.setFont(font);
+    backText.setCharacterSize(18);
+    backText.setFillColor(sf::Color::Black);
+    backText.setString("Back to Lobby");
+
+    sf::FloatRect textBounds = backText.getLocalBounds();
+    backText.setPosition(
+        backBtn.getPosition().x + (150 - textBounds.width) / 2 - textBounds.left,
+        backBtn.getPosition().y + (40 - textBounds.height) / 2 - textBounds.top
+    );
+}
+
+void drawScoreScreen(sf::RenderWindow& window) {
+    sf::Text header, player1, player2;
+
+    header.setFont(font);
+    header.setCharacterSize(28);
+    header.setFillColor(sf::Color::White);
+    header.setString("Round Results");
+    header.setPosition(280, 40);
+
+    player1.setFont(font);
+    player1.setCharacterSize(16);
+    player1.setFillColor(sf::Color::White);
+    player1.setString(p1ScoreText);
+    player1.setPosition(80, 100);
+
+    player2.setFont(font);
+    player2.setCharacterSize(16);
+    player2.setFillColor(sf::Color::White);
+    player2.setString(p2ScoreText);
+    player2.setPosition(420, 100);
+
+    window.draw(header);
+    window.draw(player1);
+    window.draw(player2);
+    window.draw(backBtn);
+    window.draw(backText);
+}
+
+void handleScoreScreenClick(const sf::Vector2f& mouse) {
+    if (backBtn.getGlobalBounds().contains(mouse)) {
+        std::cout << "[UI] Back to Lobby clicked\n";
+        state = UIState::LobbyMenu;
+        p1ScoreText.clear();
+        p2ScoreText.clear();
+        score1Complete = score2Complete = false;
+    }
+}
+
 
 static std::vector<std::string> parseCardCodes(const std::string& raw) {
     std::vector<std::string> codes;
@@ -115,7 +190,10 @@ void handleServerResponse() {
             std::istringstream iss(response);
             std::string line;
 
+            bool seenTable = false;
+            bool seenHand = false;
             while (std::getline(iss, line)) {
+                std::cout << "[SERVER] " << line << "\n";  // <-- ADD THIS LINE
                 if (line.rfind("GAME_CREATED", 0) == 0) {
                     lobbyCode = line.substr(13);
                     lobbyCode.erase(
@@ -139,15 +217,46 @@ void handleServerResponse() {
                 } else if (line.rfind("TABLE:", 0) == 0) {
                     // strip prefix and parse all codes
                     tableRaw = parseCardCodes(line.substr(6));
+                    seenTable = true;
 
                 } else if (line.rfind("HAND:", 0) == 0) {
                     handRaw = parseCardCodes(line.substr(5));
-
-                    // Hand off to GameView now that both are ready
-                    gameView.setCards(tableRaw, handRaw);
-                    state = UIState::InGame;
+                    seenHand = true;
+                
+                } else if (line == "TURN") {
+                    myTurn = true;
+                    std::cout << "[SERVER] It's your turn.\n";
+                } else if (line.rfind("SCORE:", 0) == 0) {
+                    // Start a new block
+                    currentScoreBlock = line.substr(6) + "\n";
+                    inScoreBlock = true;
+                } else if (inScoreBlock && (line.find(" - ") == 0 || line.empty())) {
+                    currentScoreBlock += line + "\n";
+                    if (line.find("Bermila") != std::string::npos || line.empty()) {
+                        if (!score1Complete) {
+                            p1ScoreText = currentScoreBlock;
+                            score1Complete = true;
+                        } else {
+                            p2ScoreText = currentScoreBlock;
+                            score2Complete = true;
+                        }
+                        inScoreBlock = false;
+                    }
                 }
+                
+                
             }
+            if (seenTable && seenHand) {
+                gameView.setCards(tableRaw, handRaw);
+                state = UIState::InGame;
+            }
+            else if (seenTable) {
+                gameView.setCards(tableRaw, handRaw);  // <= add this!
+            }
+            if (score1Complete && score2Complete) {
+                state = UIState::ScoreScreen;
+            }
+            
         }
     }
 }
@@ -165,6 +274,7 @@ int main() {
         std::cerr << "Font missing.\n";
         return 1;
     }
+    setupScoreScreenUI();
 
     // Setup UI buttons
     createBtn       = createButton(200, 100, "Create Game", createText);
@@ -272,11 +382,47 @@ int main() {
                 if (!sel.empty())
                     std::cout << "Selected: " << sel << "\n";
             }
+            else if (state == UIState::InGame && event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Enter && myTurn) {
+                    int handIdx = gameView.getHandSelected();
+                    if (handIdx != -1) {
+                        auto tableSel = gameView.getTableSelected();
+                        std::ostringstream mv;
+                        mv << "MOVE " << handIdx;
+                        for (int i = 0; i < tableSel.size(); ++i)
+                            if (tableSel[i]) mv << ' ' << i;
+                        mv << '\n';
+                        socket.send(mv.str().c_str(), mv.str().size());
+                        myTurn = false; 
+                        std::cout << "[DEBUG] Sending command: " << mv.str();
+                        gameView.clearSelection();
+                    }
+                }
+            } else if (state == UIState::ScoreScreen &&
+                event.type == sf::Event::MouseButtonPressed) {
+                sf::Vector2f mouse{float(event.mouseButton.x), float(event.mouseButton.y)};
+                if (backBtn.getGlobalBounds().contains(mouse)) {
+                    state = UIState::LobbyMenu;
+                    p1ScoreText.clear();
+                    p2ScoreText.clear();
+                    score1Complete = score2Complete = false;
+                }
+            } else if ((state == UIState::CreateForm || state == UIState::JoinForm) && event.type == sf::Event::MouseButtonPressed) {
+                if (backBtn.getGlobalBounds().contains(mouse)) {
+                    std::cout << "[UI] Back to Lobby clicked\n";
+                    state = UIState::LobbyMenu;
+                    nameInput.clear();
+                    codeInput.clear();
+                    inputTextName.setString("");
+                    inputTextCode.setString("");
+                }
+            }
+            
         }
 
-        if (state == UIState::Waiting) {
-            handleServerResponse();
-        }
+       
+        handleServerResponse();
+        
 
         // Layout updates for forms
         if (state == UIState::CreateForm) {
@@ -304,6 +450,8 @@ int main() {
         else if (state == UIState::JoinForm)   drawJoinForm(window);
         else if (state == UIState::Waiting)    drawWaitingScreen(window);
         else if (state == UIState::InGame)     gameView.render(window);
+        else if (state == UIState::ScoreScreen) drawScoreScreen(window);
+
         window.display();
     }
 

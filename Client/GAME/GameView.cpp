@@ -12,7 +12,7 @@ GameView::GameView()
 {
     background.setSize({float(WINDOW_WIDTH), float(WINDOW_HEIGHT)});
     background.setFillColor({34,139,34});
-    textures.resize(10);
+
 }
 
 sf::Sprite GameView::loadCard(const std::string& code,
@@ -33,35 +33,41 @@ sf::Sprite GameView::loadCard(const std::string& code,
 }
 
 void GameView::setCards(const std::vector<std::string>& table,
-                        const std::vector<std::string>& hand)
+    const std::vector<std::string>& hand)
 {
-    // --- table setup ---
-    tableSprites.clear();
-    tableOrig.clear();
-    tableSelected.clear();
-    for (size_t i = 0; i < table.size(); ++i) {
-        float x = 250 + i*(CARD_WIDTH+20), y = 250;
-        tableSprites.push_back(loadCard(table[i], {x,y}, textures[i]));
-        tableOrig.push_back({x,y});
-        tableSelected.push_back(false);
-    }
+// Resize textures to avoid reuse conflicts
+textures.clear();
+textures.resize(table.size() + hand.size() + 3); // 3 extra for back cards
 
-    // --- hand setup ---
-    playerSprites.clear();
-    playerOrig.clear();
-    playerCodes = hand;
-    handSelected = -1;
-    for (size_t i = 0; i < hand.size(); ++i) {
-        float x = 250 + i*(CARD_WIDTH+20), y = 500;
-        playerSprites.push_back(loadCard(hand[i], {x,y}, textures[4+i]));
-        playerOrig.push_back({x,y});
-    }
-
-    // --- piles/back cards ---
-    opponentCard = loadCard("card_back", {260,50}, textures[7]);
-    playerPile   = loadCard("card_back", { 50,500}, textures[8]);
-    opponentPile = loadCard("card_back", { 50, 50}, textures[9]);
+// --- table setup ---
+tableSprites.clear();
+tableOrig.clear();
+tableSelected.clear();
+for (size_t i = 0; i < table.size(); ++i) {
+float x = 100 + (i % 6) * (CARD_WIDTH + 10);
+float y = 250 + (i / 6) * (CARD_HEIGHT + 10);
+tableSprites.push_back(loadCard(table[i], {x,y}, textures[i]));
+tableOrig.push_back({x,y});
+tableSelected.push_back(false);
 }
+
+// --- hand setup ---
+playerSprites.clear();
+playerOrig.clear();
+playerCodes = hand;
+handSelected = -1;
+for (size_t i = 0; i < hand.size(); ++i) {
+float x = 250 + i*(CARD_WIDTH+20), y = 500;
+playerSprites.push_back(loadCard(hand[i], {x,y}, textures[table.size() + i]));
+playerOrig.push_back({x,y});
+}
+
+// --- piles/back cards ---
+opponentCard = loadCard("card_back", {260,50}, textures[table.size() + hand.size() + 0]);
+playerPile   = loadCard("card_back", { 50,500}, textures[table.size() + hand.size() + 1]);
+opponentPile = loadCard("card_back", { 50, 50}, textures[table.size() + hand.size() + 2]);
+}
+
 
 void GameView::render(sf::RenderWindow& w) {
     w.draw(background);
@@ -111,4 +117,27 @@ std::string GameView::handleClick(const sf::Vector2f& mouse) {
     }
 
     return "";
+}
+
+int GameView::getHandSelected() const {
+    return handSelected;
+}
+
+std::vector<bool> GameView::getTableSelected() const {
+    return tableSelected;
+}
+
+void GameView::clearSelection() {
+    // Reset lifted hand card position
+    if (handSelected >= 0 && handSelected < int(playerSprites.size()))
+        playerSprites[handSelected].setPosition(playerOrig[handSelected]);
+
+    // Reset lifted table cards
+    for (size_t i = 0; i < tableSprites.size(); ++i) {
+        if (tableSelected[i])
+            tableSprites[i].setPosition(tableOrig[i]);
+    }
+
+    handSelected = -1;
+    std::fill(tableSelected.begin(), tableSelected.end(), false);
 }

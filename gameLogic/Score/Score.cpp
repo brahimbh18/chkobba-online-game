@@ -1,4 +1,5 @@
 #include "Score.h"
+#include <iostream>
 
 namespace gameLogic {
 
@@ -17,9 +18,15 @@ void Score::calculateAfterRound(const std::vector<Card>& capturedCards) {
     int diamonds = 0;
     int sevens = 0;
     int sixes = 0;
+    std::cout << "size :" << capturedCards.size() << "\n";
+    for (Card card: capturedCards) {
+        if (card.getSuit() == "C")
+        std::cout << card.toString() << "|";
+    }
+    std::cout << "\n";
 
     for (const auto& card : capturedCards) {
-        if (card.getSuit() == "Diamonds") {
+        if (card.getSuit() == "C") {
             diamonds++;
         }
         if (card.getVal() == 7) {
@@ -35,7 +42,7 @@ void Score::calculateAfterRound(const std::vector<Card>& capturedCards) {
     }
 
     for (const auto& card : capturedCards) {
-        if (card.getSuit() == "Diamonds" && card.getVal() == 7) {
+        if (card.getSuit() == "C" && card.getVal() == 7) {
             haya = 1;
             break;
         }

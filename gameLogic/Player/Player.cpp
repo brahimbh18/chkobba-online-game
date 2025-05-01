@@ -52,10 +52,10 @@ std::string Player::getScore() const {
     ss << "Score breakdown for " << name << ":\n";
     ss << " - Final score: " << score.getFinalScore() << "\n";
     ss << " - Chkobba: " << score.getChkobba() << "\n";
-    ss << " - Carta (most cards): " << (score.getCarta() ? "Yes (+1)" : "No") << "\n";
-    ss << " - Dinari (6+ Diamonds): " << (score.getDinari() ? "Yes (+1)" : "No") << "\n";
-    ss << " - Haya (7♦ captured): " << (score.getHaya() ? "Yes (+1)" : "No") << "\n";
-    ss << " - Bermila (3×7 or 2×7 & 3×6): " << (score.getBermila() ? "Yes (+1)" : "No") << "\n";
+    ss << " - Carta: " << (score.getCarta() ? "Yes (+1)" : "No") << "\n";
+    ss << " - Dinari: " << (score.getDinari() ? "Yes (+1)" : "No") << "\n";
+    ss << " - Haya: " << (score.getHaya() ? "Yes (+1)" : "No") << "\n";
+    ss << " - Bermila: " << (score.getBermila() ? "Yes (+1)" : "No") << "\n";
     return ss.str();
 }
 
