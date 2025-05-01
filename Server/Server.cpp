@@ -185,63 +185,72 @@ void Server::startGameSession(const std::string& code) {
 // Handle a single client: CREATE or JOIN
 void Server::handleClient(int clientSock) {
     char buf[1024];
-    int n = recv(clientSock, buf, sizeof(buf)-1, 0);
-    if (n <= 0) return;
-    buf[n] = '\0';
-
-    std::istringstream iss(buf);
-    std::string cmd, name, code;
-    iss >> cmd;
-
-    if (cmd == "CREATE") {
-        iss >> name;
-        std::string gameCode = generateCode();
-        {
-            std::lock_guard<std::mutex> lk(lobbyMutex);
-            lobbies[gameCode].player1 = {clientSock, name};
-            lobbies[gameCode].ready   = false;
+    while (true) {
+        int n = recv(clientSock, buf, sizeof(buf) - 1, 0);
+        if (n <= 0) {
+            std::cerr << "[SERVER] Client " << clientSock << " disconnected or error.\n";
+            close(clientSock);
+            return;
         }
 
-        // --- CORRECTED: always use .size() so newline is included ---
-        std::string response = "GAME_CREATED " + gameCode + "\n";
-        send(clientSock, response.c_str(), response.size(), 0);
+        buf[n] = '\0';
+        std::istringstream iss(buf);
+        std::string cmd, name, code;
+        iss >> cmd;
 
-        // wait for JOIN
-        while (true) {
+        if (cmd == "CREATE") {
+            iss >> name;
+            std::string gameCode = generateCode();
             {
                 std::lock_guard<std::mutex> lk(lobbyMutex);
-                if (lobbies[gameCode].ready) break;
+                lobbies[gameCode].player1 = {clientSock, name};
+                lobbies[gameCode].ready   = false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
 
-        std::string joined = "INFO:PLAYER_JOINED\n";
-        send(clientSock, joined.c_str(), joined.size(), 0);
+            std::string response = "GAME_CREATED " + gameCode + "\n";
+            send(clientSock, response.c_str(), response.size(), 0);
 
-        startGameSession(gameCode);
-
-    } else if (cmd == "JOIN") {
-        iss >> code >> name;
-        bool ok = false;
-        {
-            std::lock_guard<std::mutex> lk(lobbyMutex);
-            auto it = lobbies.find(code);
-            if (it != lobbies.end() && !it->second.ready) {
-                it->second.player2 = {clientSock, name};
-                it->second.ready   = true;
-                ok = true;
+            // wait for second player to join
+            while (true) {
+                {
+                    std::lock_guard<std::mutex> lk(lobbyMutex);
+                    if (lobbies[gameCode].ready) break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
-        }
-        if (ok) {
-            std::string resp = "INFO:JOINED_GAME\n";
-            send(clientSock, resp.c_str(), resp.size(), 0);
-        } else {
-            std::string invalid = "INFO:INVALID_CODE\n";
-            send(clientSock, invalid.c_str(), invalid.size(), 0);
-            close(clientSock);
+
+            std::string joined = "INFO:PLAYER_JOINED\n";
+            send(clientSock, joined.c_str(), joined.size(), 0);
+
+            startGameSession(gameCode);
+            return;  // Game is over, exit handler
+
+        } else if (cmd == "JOIN") {
+            iss >> code >> name;
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lk(lobbyMutex);
+                auto it = lobbies.find(code);
+                if (it != lobbies.end() && !it->second.ready) {
+                    it->second.player2 = {clientSock, name};
+                    it->second.ready   = true;
+                    ok = true;
+                }
+            }
+
+            if (ok) {
+                std::string resp = "INFO:JOINED_GAME\n";
+                send(clientSock, resp.c_str(), resp.size(), 0);
+                return;  // Game will be started by creator thread
+            } else {
+                std::string invalid = "INFO:INVALID_CODE\n";
+                send(clientSock, invalid.c_str(), invalid.size(), 0);
+                // Keep loop running so client can retry
+            }
         }
     }
 }
+
 
 // Start listening and accept clients
 void Server::run(int port) {

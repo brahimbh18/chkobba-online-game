@@ -175,8 +175,14 @@ void sendCreateRequest() {
 }
 
 void sendJoinRequest() {
+    if (codeInput.size() != 4 || nameInput.empty()) {
+        std::cout << "[CLIENT] Cannot send JOIN: invalid name or code (code must be 4 chars).\n";
+        return;
+    }
+
     std::string cmd = "JOIN " + codeInput + " " + nameInput + "\n";
     socket.send(cmd.c_str(), cmd.size());
+    std::cout << "[CLIENT] Sent: " << cmd;
 }
 
 void handleServerResponse() {
@@ -192,45 +198,59 @@ void handleServerResponse() {
 
             bool seenTable = false;
             bool seenHand = false;
+
             while (std::getline(iss, line)) {
-                std::cout << "[SERVER] " << line << "\n";  // <-- ADD THIS LINE
+                std::cout << "[SERVER] " << line << "\n";
+
+                if (line == "INFO:INVALID_CODE") {
+                    std::cout << "[CLIENT] Invalid game code received.\n";
+                    state = UIState::JoinForm;
+
+                    // Keep name; reset only the code
+                    codeInput.clear();
+                    inputTextCode.setString("");
+                    waitingText.setString("Invalid code. Try again.");
+                    continue;
+                }
+
                 if (line.rfind("GAME_CREATED", 0) == 0) {
                     lobbyCode = line.substr(13);
-                    lobbyCode.erase(
-                      std::remove(lobbyCode.begin(), lobbyCode.end(), '\n'),
-                      lobbyCode.end()
-                    );
-                    waitingText.setString(
-                      "Game Code: " + lobbyCode + "\nWaiting for another player..."
-                    );
+                    lobbyCode.erase(std::remove(lobbyCode.begin(), lobbyCode.end(), '\n'), lobbyCode.end());
+                    waitingText.setString("Game Code: " + lobbyCode + "\nWaiting for another player...");
+                    state = UIState::Waiting;
+                }
 
-                } else if (line.rfind("JOINED_GAME", 0) == 0) {
-                    waitingText.setString(
-                      "Successfully joined game!\nWaiting for other player..."
-                    );
+                else if (line.rfind("JOINED_GAME", 0) == 0) {
+                    waitingText.setString("Successfully joined game!\nWaiting for other player...");
+                    state = UIState::Waiting;
+                }
 
-                } else if (line.rfind("INFO:GAME_STARTED", 0) == 0) {
-                    // clear previous
+                else if (line == "INFO:GAME_STARTED") {
                     tableRaw.clear();
                     handRaw.clear();
+                }
 
-                } else if (line.rfind("TABLE:", 0) == 0) {
-                    // strip prefix and parse all codes
+                else if (line.rfind("TABLE:", 0) == 0) {
                     tableRaw = parseCardCodes(line.substr(6));
                     seenTable = true;
+                }
 
-                } else if (line.rfind("HAND:", 0) == 0) {
+                else if (line.rfind("HAND:", 0) == 0) {
                     handRaw = parseCardCodes(line.substr(5));
                     seenHand = true;
-                
-                } else if (line == "TURN") {
+                }
+
+                else if (line == "TURN") {
                     myTurn = true;
                     std::cout << "[SERVER] It's your turn.\n";
-                } else if (line.rfind("SCORE:", 0) == 0) {
-                    // Start a new block
+                }
+
+                else if (line.rfind("SCORE:", 0) == 0) {
                     currentScoreBlock = line.substr(6) + "\n";
                     inScoreBlock = true;
-                } else if (inScoreBlock && (line.find(" - ") == 0 || line.empty())) {
+                }
+
+                else if (inScoreBlock && (line.find(" - ") == 0 || line.empty())) {
                     currentScoreBlock += line + "\n";
                     if (line.find("Bermila") != std::string::npos || line.empty()) {
                         if (!score1Complete) {
@@ -243,23 +263,23 @@ void handleServerResponse() {
                         inScoreBlock = false;
                     }
                 }
-                
-                
             }
+
             if (seenTable && seenHand) {
                 gameView.setCards(tableRaw, handRaw);
                 state = UIState::InGame;
             }
             else if (seenTable) {
-                gameView.setCards(tableRaw, handRaw);  // <= add this!
+                gameView.setCards(tableRaw, handRaw);
             }
+
             if (score1Complete && score2Complete) {
                 state = UIState::ScoreScreen;
             }
-            
         }
     }
 }
+
 
 int main() {
     if (socket.connect("127.0.0.1", 4000) != sf::Socket::Done) {
@@ -368,7 +388,7 @@ int main() {
                     }
                     else if (state == UIState::JoinForm && joinConfirmBtn.getGlobalBounds().contains(mouse)) {
                         sendJoinRequest();
-                        state = UIState::Waiting;
+                        
                     }
                 }
 
